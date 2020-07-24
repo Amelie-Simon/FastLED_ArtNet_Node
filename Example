@@ -1,0 +1,54 @@
+#include "Ethernet.h"
+#include "EthernetUdp.h"
+#include "SPI.h"
+#include "FastLED.h"  
+
+const int number_of_universes = 2;             // set the number of universes in this subnet from 1 - 16
+const byte subnet = 0;                         // set the subnet address from 0 - 15
+const int number_of_leds_per_universe = 12;    // set the number of LEDs per universe from 1 - 170
+const int data_pin = 6;                        // set data pin for LED data output
+
+byte mac_address[] = { 
+  0x01, 0x02, 0x03, 0x04, 0x05, 0x06           // set MAC address
+}; 
+
+byte ip_address[] = { 
+  2, 0, 0, 97                                 // set IP address
+}; 
+
+const int number_of_leds = number_of_universes * number_of_leds_per_universe; 
+CRGB leds[number_of_leds];
+
+byte buffer[530]; 
+
+EthernetUDP Udp;
+
+void setup() {  
+  pinMode(10, OUTPUT); 
+  digitalWrite(10, HIGH); 
+
+  Ethernet.begin(mac_address,ip_address);
+  Udp.begin(6454);
+
+  FastLED.addLeds<NEOPIXEL, data_pin>(leds, number_of_leds); 
+}
+
+void loop() {
+  int packetSize = Udp.parsePacket();
+  if(packetSize > 0) {
+    long st = micros(); 
+    Udp.read(buffer, 18);  
+    byte incoming_subnet = buffer[14] >> 4;
+    byte incoming_universe = buffer[14] & 0x0f; 
+
+    if(incoming_subnet == subnet) {
+      Udp.read(buffer, number_of_leds_per_universe * 3);  
+      for(int i = 0; i < number_of_leds_per_universe; i ++) {
+        leds[i + (incoming_universe * number_of_leds_per_universe)] = CRGB (buffer[i * 3], buffer[(i * 3) + 1], buffer[(i * 3) + 2]);
+      }
+      FastLED.show();  
+    }
+  }
+}
+
+
